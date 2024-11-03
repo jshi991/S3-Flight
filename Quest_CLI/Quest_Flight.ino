@@ -1,3 +1,9 @@
+//ISS TEAM F DEV NOTES
+//use bitmasking to only open two channels
+//check delays 
+//is 12 hours enough for the 30k buffer
+//is count needed to close channels or leave all channels open/specifc channels open for the duration of the experiment
+
 /*
 ****************************************************************************************
 ****************************************************************************************
@@ -38,7 +44,8 @@ Files Required to make a complete program -
 
 #include "Quest_Flight.h"
 #include "Quest_CLI.h"
-
+#include "TCA9548.h"
+#include "AS726X.h"
 //////////////////////////////////////////////////////////////////////////
 //    This defines the timers used to control flight operations
 //////////////////////////////////////////////////////////////////////////
@@ -56,8 +63,24 @@ Files Required to make a complete program -
 //
 //
 #define TimeEvent1_time     ((one_min * 60) / SpeedFactor)      //take a photo time
-#define Sensor1time         ((one_min * 15) / SpeedFactor)      //Time to make Sensor1 readings 
-#define Sensor2time         ((one_sec * 20)  / SpeedFactor) 
+#define PumpEvent1_time     ((one_hour*12) / SpeedFactor)       //need to confirm this
+// #define Sensor1time         ((one_min * 15) / SpeedFactor)      //Time to make Sensor1 readings 
+#define NIRTime         ((one_sec * 20)  / SpeedFactor) 
+#define NoPhototime          ((one_minute * 5) / SpeedFactor)    //increase this value later
+//note to self, will overflow 2kb??
+
+
+//define all sensor objects
+TCA9548 MP(0x70);
+AS726X sensor;
+AS726X sensor1;
+
+uint8_t count = 0;
+uint8_t fCount = 50; //
+uint8_t channels = 0; //only want two channels open
+String name = "NIR"; //first NIR sensor
+String name1 = "NIR1"; //second NIR sensor
+
 //
   int sensor1count = 0;     //counter of times the sensor has been accessed
   int sensor2count = 0;     //counter of times the sensor has been accessed
@@ -71,14 +94,54 @@ Files Required to make a complete program -
 //   Beginning of the flight program setup
 //
 //
+//print everything that the sensor reads, testing purposes
+void sensorPrint(AS726X& obj, String name){
+
+  Serial.print(name +  "readings: ");
+  Serial.print(" Reading: R[");
+  Serial.print(obj.getCalibratedR(), 2);
+  Serial.print("] S[");
+  Serial.print(obj.getCalibratedS(), 2);
+  Serial.print("] T[");
+  Serial.print(obj.getCalibratedT(), 2);
+  Serial.print("] U[");
+  Serial.print(obj.getCalibratedU(), 2);
+  Serial.print("] V[");
+  Serial.print(obj.getCalibratedV(), 2);
+  Serial.print("] W[");
+  Serial.print(obj.getCalibratedW(), 2);  
+  Serial.println();
+}
+//put float data into an array, to be used fix the cursedness later
+float[] getData(AS726X& obj){
+  float[] data = new float[6];
+  float value = round(obj.getCalibratedR() * 100) / 100.0;    
+  data[0] = value;
+  float value1 = round(obj.getCalibratedS() * 100) / 100.0;    
+  data[1] = value1;
+  float value2 = round(obj.getCalibratedT() * 100) / 100.0;    
+  data[2] = value2;
+  float value3 = round(obj.getCalibratedU() * 100) / 100.0;    
+  data[3] = value3;
+  float value4 = round(obj.getCalibratedV() * 100) / 100.0;    
+  data[4] = value4;
+  float value5 = round(obj.getCalibratedW() * 100) / 100.0;    
+  data[5] = value5;
+  return data;
+}
 void Flying() {
   //
+  Serial.begin(115200);
   Serial.println("\n\rRun flight program\n\r");
+  Serial.println(__FILE__);
+  Serial.print("TCA9548_LIB_VERSION: ");
+  Serial.println(TCA9548_LIB_VERSION);
+  Serial.println();
   //
   uint32_t TimeEvent1 = millis();               //set TimeEvent1 to effective 0
-  uint32_t Sensor1Timer = millis();             //clear sensor1Timer to effective 0
-  uint32_t Sensor2Timer = millis();             //clear sensor1Timer to effective 0
-  uint32_t Sensor2Deadmillis = millis();        //clear mills for difference
+  // uint32_t Sensor1Timer = millis();             //clear sensor1Timer to effective 0
+  uint32_t NIRTimer = millis();             //clear sensor1Timer to effective 0
+  uint32_t NIRDeadmills = millis();        //clear mills for difference
   //
   uint32_t one_secTimer = millis();             //set happens every second
   uint32_t sec60Timer = millis();               //set minute timer
@@ -87,6 +150,57 @@ void Flying() {
   //   Here to set up flight conditions i/o pins, atod, and other special condition
   //   of your program
   //
+  //code for 
+  Wire.begin();
+  sensor.begin();// begin sensor
+  sensor1.begin();
+  if (MP.begin() == false)
+  {
+    Serial.println("COULD NOT CONNECT"); //multiplexer failed 
+  }
+  channels = MP.channelCount(); //activate all channels 
+  Serial.print("CHAN:\t");
+  Serial.println(MP.channelCount());
+
+  Serial.print("MASK:\t");
+  Serial.println(MP.getChannelMask(), HEX);
+  //pre checking 
+  for (int chan = 0; chan < channels; chan++)
+  {
+    Serial.print("PRE:\t");
+    Serial.print(MP.isEnabled(chan));
+    MP.enableChannel(chan);
+    Serial.print("\t");
+    Serial.println(MP.isEnabled(chan));
+    delay(100);
+  }
+  Serial.println();
+
+  MP.setChannelMask(0x00); //note to self, after works use bitmasking to increase effeciency
+
+  Serial.print("MASK:\t");
+  Serial.println(MP.getChannelMask(), HEX);
+  //activate
+  for (int chan = 0; chan < channels; chan++)
+  {
+    MP.enableChannel(chan);
+
+    Serial.print("MASK:\t");
+    Serial.println(MP.getChannelMask(), HEX);
+    delay(100);
+  }
+  //post checking are all activated
+  for (int chan = 0; chan < channels; chan++)
+  {
+    Serial.print("POST:\t");
+    Serial.print(MP.isEnabled(chan));
+    MP.enableChannel(chan);
+    Serial.print("\t");
+    Serial.println(MP.isEnabled(chan));
+    delay(100);
+  }
+  Serial.println();
+
   //
   //
   //******************************************************************
@@ -205,17 +319,17 @@ void Flying() {
 //*********** Read Sensor1 Event read and add to text buffer************
 //**********************************************************************
     //
-    if ((millis() - Sensor1Timer) > Sensor1time) {    //Is it time to read?
-      Sensor1Timer = millis();                        //Yes, lets read the sensor1
-      sensor1count++;
-      int value1 = sensor1count;              //sensor count number up from zero
-      int value2 = 55000;                     //SIMULATED SENSOR VALUE,need to calculate real value
-      int value3 = 14;                        //SIMULATED SENSOR VALUE,need to calculate real value
-      //
-      add2text(value1, value2, value3);       //add the values to the text buffer
-      //    
-    }     // End of Sensor1 time event
-    //
+    // if ((millis() - Sensor1Timer) > Sensor1time) {    //Is it time to read?
+    //   Sensor1Timer = millis();                        //Yes, lets read the sensor1
+    //   sensor1count++;
+    //   int value1 = sensor1count;              //sensor count number up from zero
+    //   int value2 = 55000;                     //SIMULATED SENSOR VALUE,need to calculate real value
+    //   int value3 = 14;                        //SIMULATED SENSOR VALUE,need to calculate real value
+    //   //
+    //   add2text(value1, value2, value3);       //add the values to the text buffer
+    //   //    
+    // }     // End of Sensor1 time event
+    // //
 //**********************************************************************
 //*********** Read Sensor2 Event read and add to text buffer************
 //*********** Test of filling the 30K data buffer for lots of data *****
@@ -223,21 +337,21 @@ void Flying() {
     //  If it is event driven then remove the Sensor2Timer evvvvvend 
     //  here to get the  data for the event 
     //
-    if ((millis() - Sensor2Timer) > Sensor2time) {    //Is it time to read?
-      Sensor2Timer = millis();                        //Yes, lets read the sensor1
+    if ((millis() - NIRTimer) > NIRTime) {    //Is it time to read?
+      NIRTimer = millis();                        //Yes, lets read the sensor1
       sensor2count++;
       //
       //  Here to calculate and store data
       //
-      int Deadtime = millis()-Sensor2Deadmillis;      //time in millis sence last visit
-      Sensor2Deadmillis = millis();                   //set millis this visit
+      int Deadtime = millis()-NIRDeadmills;      //time in millis sence last visit
+      NIRDeadmills = millis();                   //set millis this visit
       //
-      //**** now get ampli and SiPM *****
-      int ampli = 555;              //SIMULATED
-      int SiPM  = 888;              //SIMULATED
-      //***** end simulated *************
-      //
-      dataappend(sensor2count, ampli, SiPM, Deadtime);
+      float[] data = getData(sensor);
+      float[] data1 = getData(sensor1);
+      
+      sensorPrint(sensor, name); //testing purposes
+      sensorPrint(sensor1, name1);
+      dataappend(sensor2count, data, data1, Deadtime);
     }     // End of Sensor2Timer          
   }       // End of while 
 }         //End nof Flighting
@@ -302,14 +416,38 @@ void add2text(int value1,int value2,int value3){                 //Add value to 
 //  Append data to the large data buffer buffer always enter unit time of data added
 //  enter: void dataappend(int counts, int ampli, int SiPM, int Deadtime) (4 values)
 //
-void dataappend(int counts,int ampli,int SiPM,int Deadtime) {          //entry, add line with values to databuffer
+
+//Justin Shi notes to self - dataappen converts a array of character pointers to a c string, adding to the buffer itself with formatting to make it look nice
+//resets upon nophoto30k
+//data append everything within the time period, make sure within 2 KB data 
+//call nophoto30k, clears everything in the data buffer
+// void dataappend(int counts,int ampli,int SiPM,int Deadtime) {          //entry, add line with values to databuffer
+//   //----- get and set time to entry -----
+//   DateTime now = rtc.now();                                               //get time of entry
+//   String stringValue = String(now.unixtime());                            //convert unix time to string
+//   const char* charValue = stringValue.c_str();                            //convert to a C string value
+//   appendToBuffer(charValue);                                              //Sent unix time to databuffer
+//   //----- add formated string to buffer -----
+//   String results = " - " + String(counts) + " " + String(ampli) + " " + String(SiPM) + " " + String (Deadtime) + "\r\n";  //format databuffer entry
+//   const char* charValue1 = results.c_str();                               //convert to a C string value
+//   appendToBuffer(charValue1);                                             //Send formated string to databuff
+//   //
+//   //  Serial.println(databufferLength);                                   //print buffer length for testing only
+// }
+
+void dataappend(int counts, float vals[], float vals1[], int Deadtime) {          //entry, add line with values to databuffer, garenteed to be of size 6 
   //----- get and set time to entry -----
+  char[] colors = {'R', 'S', 'T', 'U', 'V', 'W'};
   DateTime now = rtc.now();                                               //get time of entry
   String stringValue = String(now.unixtime());                            //convert unix time to string
   const char* charValue = stringValue.c_str();                            //convert to a C string value
   appendToBuffer(charValue);                                              //Sent unix time to databuffer
   //----- add formated string to buffer -----
-  String results = " - " + String(counts) + " " + String(ampli) + " " + String(SiPM) + " " + String (Deadtime) + "\r\n";  //format databuffer entry
+  String results = " - " + String(counts) + String (Deadtime) + " ";  //format databuffer entry
+  for(int i = 0; i<6; i++){
+    results = results + " " + colors[i] + ": sensor:" + vals[i] + " sensor1: " +vals1[i] + " ";
+  }
+  results += "\r\n";
   const char* charValue1 = results.c_str();                               //convert to a C string value
   appendToBuffer(charValue1);                                             //Send formated string to databuff
   //
