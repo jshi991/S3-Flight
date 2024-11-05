@@ -440,8 +440,6 @@ void dataappend(int counts, float vals[], float vals1[], int Deadtime) {        
   char[] colors = {'R', 'S', 'T', 'U', 'V', 'W'};
   DateTime now = rtc.now();                                               //get time of entry
   String stringValue = String(now.unixtime());                            //convert unix time to string
-  const char* charValue = stringValue.c_str();                            //convert to a C string value
-  appendToBuffer(charValue);                                              //Sent unix time to databuffer
   //----- add formated string to buffer -----
   String results = " - " + String(counts) + String (Deadtime) + " ";  //format databuffer entry
   for(int i = 0; i<6; i++){
