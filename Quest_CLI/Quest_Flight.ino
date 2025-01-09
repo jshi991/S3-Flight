@@ -38,15 +38,15 @@ Files Required to make a complete program -
 
 #include "Quest_Flight.h"
 #include "Quest_CLI.h"
-#include "AS726X.h"
+#include "Adafruit_AS7341.h"
 #include "TCA9548.h"
 #include "Wire.h"
 
 #define PCAADDR 0x70
 
 
-AS726X colorSensor1;
-AS726X colorSensor2;
+Adafruit_AS7341 colorSensor1;
+Adafruit_AS7341 colorSensor2;
 
 TCA9548 MP(0x70);
 u_int8_t channels = 0;
@@ -101,8 +101,14 @@ void Flying() {
   Serial.print("TCA9548_LIB_VERSION: ");
   Serial.println(TCA9548_LIB_VERSION);
   Wire.begin();
-  colorSensor1.begin();
-  colorSensor2.begin();
+
+  colorSensor1.setATIME(100);
+  colorSensor1.setASTEP(999);
+  colorSensor1.setGain(AS7341_GAIN_256X);
+
+  colorSensor2.setATIME(100);
+  colorSensor2.setASTEP(999);
+  colorSensor2.setGain(AS7341_GAIN_256X);
 
   if(MP.begin() == false) {
     Serial.println("COULD NOT CONNECT");
@@ -195,126 +201,81 @@ void Flying() {
   if((millis() - ColorSensorTimer) > ColorSensorTime){
     ColorSensorTimer = millis();
     sensorCount++;
-    colorSensor1.takeMeasurements();
     MP.enableChannel(0);
-    int sensorData1[12];
+    int readings1[12];
+    float counts1[12];
 
-    int valueViolet1 = round(colorSensor1.getCalibratedViolet() * 100);
-    sensorData1[0] = valueViolet1;
-    int valueBlue1 = round(colorSensor1.getCalibratedBlue() * 100);
-    sensorData1[1] = valueBlue1;
-    int valueGreen1 = round(colorSensor1.getCalibratedGreen() * 100);
-    sensorData1[2] = valueGreen1;
-    int valueYellow1 = round(colorSensor1.getCalibratedYellow() * 100);
-    sensorData1[3] = valueYellow1;
-    int valueOrange1 = round(colorSensor1.getCalibratedOrange() * 100);
-    sensorData1[4] = valueOrange1;
-    int valueRed1 = round(colorSensor1.getCalibratedRed() * 100);
-    sensorData1[5] = valueRed1;
+    for(int i = 0; i < 12; i++) {
+      if(i == 4 || i == 5) {
+        continue;
+      }
+      counts1[i] = sensor1.toBasicCounts(readings1[i]);
+    }
 
-    int valueR1 = round(colorSensor1.getCalibratedR() * 100); 
-    sensorData1[6] = valueR1;
-    int valueS1 = round(colorSensor1.getCalibratedS() * 100); 
-    sensorData1[7] = valueS1;
-    int valueT1 = round(colorSensor1.getCalibratedT() * 100); 
-    sensorData1[8] = valueT1;
-    int valueU1 = round(colorSensor1.getCalibratedU() * 100); 
-    sensorData1[9] = valueU1;
-    int valueV1 = round(colorSensor1.getCalibratedV() * 100) ; 
-    sensorData1[10] = valueV1;
-    int valueW1 = round(colorSensor1.getCalibratedW() * 100); 
-    sensorData1[11] = valueW1;
-    Serial.print("color sensor 1 readings: ");
-    Serial.print(" Violet[");
-    Serial.print(valueViolet1);
-    Serial.print("] Blue[");
-    Serial.print(valueBlue1);
-    Serial.print("] Green[");
-    Serial.print(valueGreen1);
-    Serial.print("] Yellow[");
-    Serial.print(valueYellow1);
-    Serial.print("] Orange[");
-    Serial.print(valueOrange1);
-    Serial.print("] Red[");
-    Serial.print(valueRed1); 
-    Serial.print("] R[");
-    Serial.print(valueR1);
-    Serial.print("] S[");
-    Serial.print(valueS1);
-    Serial.print("] T[");
-    Serial.print(valueT1);
-    Serial.print("] U[");
-    Serial.print(valueU1);
-    Serial.print("] V[");
-    Serial.print(valueV1);
-    Serial.print("] W[");
-    Serial.print(valueW1); 
-    Serial.print("]");
+    Serial.print("F1 415nm : ");
+    Serial.println(counts1[0]);
+    Serial.print("F2 445nm : ");
+    Serial.println(counts1[1]);
+    Serial.print("F3 480nm : ");
+    Serial.println(counts1[2]);
+    Serial.print("F4 515nm : ");
+    Serial.println(counts1[3]);
+    Serial.print("F5 555nm : ");
+    // again, we skip the duplicates  
+    Serial.println(counts1[6]);
+    Serial.print("F6 590nm : ");
+    Serial.println(counts1[7]);
+    Serial.print("F7 630nm : ");
+    Serial.println(counts1[8]);
+    Serial.print("F8 680nm : ");
+    Serial.println(counts1[9]);
+    Serial.print("Clear    : ");
+    Serial.println(counts1[10]);
+    Serial.print("NIR      : ");
+    Serial.println(counts1[11]);
+    Serial.println();
 
     delay(100);
     MP.disableChannel(0);
     delay(100);
     Serial.println();
 
-
-
-    colorSensor2.takeMeasurements();
     MP.enableChannel(1);
-    int sensorData2[12];
-    int valueViolet2 = round(colorSensor2.getCalibratedViolet() * 100);
-    sensorData1[0] = valueViolet2;
-    int valueBlue2 = round(colorSensor2.getCalibratedBlue() * 100);
-    sensorData1[1] = valueBlue2;
-    int valueGreen2 = round(colorSensor2.getCalibratedGreen() * 100);
-    sensorData1[2] = valueGreen2;
-    int valueYellow2 = round(colorSensor2.getCalibratedYellow() * 100);
-    sensorData1[3] = valueYellow2;
-    int valueOrange2 = round(colorSensor2.getCalibratedOrange() * 100);
-    sensorData1[4] = valueOrange2;
-    int valueRed2 = round(colorSensor2.getCalibratedRed() * 100);
-    sensorData1[5] = valueRed2;
+    int readings2[12];
+    float counts2[12];
 
-    int valueR2 = round(colorSensor2.getCalibratedR() * 100); 
-    sensorData1[6] = valueR2;
-    int valueS2 = round(colorSensor2.getCalibratedS() * 100); 
-    sensorData1[7] = valueS2;
-    int valueT2 = round(colorSensor2.getCalibratedT() * 100); 
-    sensorData1[8] = valueT2;
-    int valueU2 = round(colorSensor2.getCalibratedU() * 100); 
-    sensorData1[9] = valueU2;
-    int valueV2 = round(colorSensor2.getCalibratedV() * 100) ; 
-    sensorData1[10] = valueV1;
-    int valueW2 = round(colorSensor2.getCalibratedW() * 100); 
-    sensorData1[11] = valueW2;
-    Serial.print("color sensor 2 readings: ");
-    Serial.print(" Violet[");
-    Serial.print(valueViolet2);
-    Serial.print("] Blue[");
-    Serial.print(valueBlue2);
-    Serial.print("] Green[");
-    Serial.print(valueGreen2);
-    Serial.print("] Yellow[");
-    Serial.print(valueYellow2);
-    Serial.print("] Orange[");
-    Serial.print(valueOrange2);
-    Serial.print("] Red[");
-    Serial.print(valueRed2); 
-    Serial.print(" R[");
-    Serial.print(valueR2);
-    Serial.print("] S[");
-    Serial.print(valueS2);
-    Serial.print("] T[");
-    Serial.print(valueT2);
-    Serial.print("] U[");
-    Serial.print(valueU2);
-    Serial.print("] V[");
-    Serial.print(valueV2);
-    Serial.print("] W[");
-    Serial.print(valueW2); 
-    Serial.print("]");
+    for(int i = 0; i < 12; i++) {
+      if(i == 4 || i == 5) {
+        continue;
+      }
+      counts2[i] = sensor2.toBasicCounts(readings2[i]);
+    }
+
+    Serial.print("F1 415nm : ");
+    Serial.println(counts2[0]);
+    Serial.print("F2 445nm : ");
+    Serial.println(counts2[1]);
+    Serial.print("F3 480nm : ");
+    Serial.println(counts2[2]);
+    Serial.print("F4 515nm : ");
+    Serial.println(counts2[3]);
+    Serial.print("F5 555nm : ");
+    // again, we skip the duplicates  
+    Serial.println(counts2[6]);
+    Serial.print("F6 590nm : ");
+    Serial.println(counts2[7]);
+    Serial.print("F7 630nm : ");
+    Serial.println(counts2[8]);
+    Serial.print("F8 680nm : ");
+    Serial.println(counts2[9]);
+    Serial.print("Clear    : ");
+    Serial.println(counts2[10]);
+    Serial.print("NIR      : ");
+    Serial.println(counts2[11]);
     MP.disableChannel(1);
+    Serial.println();
 
-    dataappend(sensorCount, sensorData1, sensorData2, ColorSensorTimer);
+    dataappend(sensorCount, counts1, counts2, ColorSensorTimer);
     nophoto30K();
   }
 
@@ -457,7 +418,7 @@ void add2text(int value1,int value2,int value3, int value4, int value5, int valu
 //
 void dataappend(int counts, int vals1[], int vals2[], int Deadtime) { //entry, add line with values to databuffer, garenteed to be of size 6 
   //----- get and set time to entry -----
-  const char colors[] = {'V', 'B', 'G', 'Y', 'O', 'R', 'R', 'S', 'T', 'U', 'V', 'W'};
+  const char colors[] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '1', '2'};
   DateTime now = rtc.now(); //get time of entry
   String stringValue = String(now.unixtime()); //convert unix time to string
   //----- add formated string to buffer -----
