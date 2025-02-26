@@ -36,24 +36,12 @@ Files Required to make a complete program -
 ****************************************************************************************** 
 */
 
-#include "Quest_Flight.h"
-#include "Quest_CLI.h"
+#include <Arduino.h>
+#include "TCA9548A.h"
 #include "Adafruit_AS7341.h"
-#include "TCA9548.h"
-#include "Wire.h"
 
-#define PCAADDR 0x70
-
-
-Adafruit_AS7341 colorSensor1;
-Adafruit_AS7341 colorSensor2;
-
-TCA9548 MP(0x70);
-u_int8_t channels = 0;
-
-String name = "sensor1";
-String name1 = "sensor2";
-
+Adafruit_AS7341 as7341;
+TCA9548A I2CMux;  // Multiplexer instance
 
 //////////////////////////////////////////////////////////////////////////
 // This defines the timers used to control flight operations
@@ -69,13 +57,15 @@ String name1 = "sensor2";
 #define one_sec 1000 //one second = 1000 millis
 #define one_min 60*one_sec // one minute of time
 #define one_hour 60*one_min // one hour of time
+#define one_day 24*one_hour
 //
 //
 #define TimeEvent1_time ((one_min * 60) / SpeedFactor) //take a photo time
-#define Pump_time ((one_sec * 14))
-#define Sensor1time ((one_min * 15) / SpeedFactor) //Time to make Sensor1 readings 
-#define Sensor2time ((one_sec * 20) / SpeedFactor) 
-#define ColorSensorTime ((one_min * 1) / SpeedFactor) 
+#define Pump_time ((one_day * 5) / SpeedFactor)
+#define ColorSensorTime ((one_min) / SpeedFactor) 
+#define Pump_duration ((one_sec * 5) / SpeedFactor)
+
+const int pump_constant = 5;
 
 //
  int sensor1count = 0; //counter of times the sensor has been accessed
@@ -95,46 +85,28 @@ String name1 = "sensor2";
 
 //Justin Shi
 //for testing purposes only, print all readings
-
-
+int pumpcounter=0;
+bool runpumps=false;
 void Flying() {
-  Serial.print("TCA9548_LIB_VERSION: ");
-  Serial.println(TCA9548_LIB_VERSION);
-  Wire.begin();
+  Serial.begin(115200);
+  Serial.println("Initializing AS7341 Sensor...");
 
-  colorSensor1.setATIME(100);
-  colorSensor1.setASTEP(999);
-  colorSensor1.setGain(AS7341_GAIN_256X);
+  I2CMux.begin(Wire);  // Initialize the I2C multiplexer
+  I2CMux.closeAll();   // Close all channels first
+  I2CMux.openChannel(1);  // Open channel 1 for AS7341
 
-  colorSensor2.setATIME(100);
-  colorSensor2.setASTEP(999);
-  colorSensor2.setGain(AS7341_GAIN_256X);
-
-  if(MP.begin() == false) {
-    Serial.println("COULD NOT CONNECT");
+  while (!Serial) {
+    delay(1);
   }
-  channels = MP.channelCount();
-  Serial.print("CHAN:\t");
-  Serial.println(MP.channelCount());
-
-  Serial.print("MASK:\t");
-  Serial.println(MP.getChannelMask(), HEX);
-  //pre checking activated?
-  for (int chan = 0; chan < channels; chan++)
-  {
-
-  Serial.print("PRE:\t");
-  Serial.print(MP.isEnabled(chan));
-  MP.enableChannel(chan);
-  Serial.print("\t");
-  Serial.println(MP.isEnabled(chan));
-  delay(100);
+  
+  if (!as7341.begin()){
+    Serial.println("Could not find AS7341");
+    while (1) { delay(10); }
   }
-  Serial.println();
-  MP.setChannelMask(0x00); //activate channel mask DO NOT CHANGE
-
-  Serial.print("MASK:\t");
-  Serial.println(MP.getChannelMask(), HEX);
+  
+  as7341.setATIME(100);
+  as7341.setASTEP(999);
+  as7341.setGain(AS7341_GAIN_256X);
 
   Serial.println("\n\rRun flight program\n\r");
   //
@@ -144,6 +116,8 @@ void Flying() {
   uint32_t Sensor1Timer = millis(); 
   uint32_t Sensor2Timer = millis(); //clear sensor1Timer to effective 0
   uint32_t Sensor2Deadmillis = millis(); //clear mills for difference
+  uint32_t PumpTimer = millis();
+  uint32_t IndividualPumps = millis();
   //
   uint32_t one_secTimer = millis(); //set happens every second
   uint32_t sec60Timer = millis(); //set minute timer
@@ -179,7 +153,7 @@ void Flying() {
   //***********************************************************************
   //***********************************************************************
 
-
+  IndividualPumps = millis();
   while (1) {
   //
   //----------- Test for terminal abort command (x) from flying ----------------------
@@ -198,85 +172,80 @@ void Flying() {
   // See above for TimeEvent1_time settings between this event
   // violet blue green yellow orange red
   //
+  
+  if((millis() - PumpTimer) > Pump_time) {
+    PumpTimer = millis();
+    runpumps=true;
+  }
+  if(((millis() - IndividualPumps) > Pump_duration) && runpumps) {
+    IndividualPumps = millis();
+      if(pumpcounter % 4 == 0) {
+        digitalWrite(IO3, HIGH);
+        pumpcounter++;
+      } else if(pumpcounter % 4 == 1) {
+        digitalWrite(IO3, LOW);
+        digitalWrite(IO4, HIGH);
+        pumpcounter++;
+      } else if(pumpcounter % 4 == 2) {
+        digitalWrite(IO4, LOW);
+        digitalWrite(IO5, HIGH);
+        pumpcounter++;
+      }  else {
+        digitalWrite(IO5, LOW);
+        digitalWrite(IO7, HIGH); // turn da vibrational motors on
+        digitalWrite(IO7, LOW);
+        runpumps = false;
+        pumpcounter++;
+      }
+    }
+
   if((millis() - ColorSensorTimer) > ColorSensorTime){
     ColorSensorTimer = millis();
-    sensorCount++;
-    MP.enableChannel(0);
-    int readings1[12];
-    float counts1[12];
+    Serial.println("turning LED on");
+    digitalWrite(IO2, HIGH);
 
-    for(int i = 0; i < 12; i++) {
-      if(i == 4 || i == 5) {
-        continue;
-      }
-      counts1[i] = sensor1.toBasicCounts(readings1[i]);
+    uint16_t readings[12];
+    float counts[12];
+
+    if (!as7341.readAllChannels(readings)){
+      Serial.println("Error reading all channels!");
+      return;
+    }
+
+    for(uint8_t i = 0; i < 12; i++) {
+      if(i == 4 || i == 5) continue;
+      // we skip the first set of duplicate clear/NIR readings
+      // (indices 4 and 5)
+      counts[i] = as7341.toBasicCounts(readings[i]);
     }
 
     Serial.print("F1 415nm : ");
-    Serial.println(counts1[0]);
+    Serial.println(counts[0]);
     Serial.print("F2 445nm : ");
-    Serial.println(counts1[1]);
+    Serial.println(counts[1]);
     Serial.print("F3 480nm : ");
-    Serial.println(counts1[2]);
+    Serial.println(counts[2]);
     Serial.print("F4 515nm : ");
-    Serial.println(counts1[3]);
+    Serial.println(counts[3]);
     Serial.print("F5 555nm : ");
     // again, we skip the duplicates  
-    Serial.println(counts1[6]);
+    Serial.println(counts[6]);
     Serial.print("F6 590nm : ");
-    Serial.println(counts1[7]);
+    Serial.println(counts[7]);
     Serial.print("F7 630nm : ");
-    Serial.println(counts1[8]);
+    Serial.println(counts[8]);
     Serial.print("F8 680nm : ");
-    Serial.println(counts1[9]);
+    Serial.println(counts[9]);
     Serial.print("Clear    : ");
-    Serial.println(counts1[10]);
+    Serial.println(counts[10]);
     Serial.print("NIR      : ");
-    Serial.println(counts1[11]);
+    Serial.println(counts[11]);
+
     Serial.println();
-
-    delay(100);
-    MP.disableChannel(0);
-    delay(100);
-    Serial.println();
-
-    MP.enableChannel(1);
-    int readings2[12];
-    float counts2[12];
-
-    for(int i = 0; i < 12; i++) {
-      if(i == 4 || i == 5) {
-        continue;
-      }
-      counts2[i] = sensor2.toBasicCounts(readings2[i]);
-    }
-
-    Serial.print("F1 415nm : ");
-    Serial.println(counts2[0]);
-    Serial.print("F2 445nm : ");
-    Serial.println(counts2[1]);
-    Serial.print("F3 480nm : ");
-    Serial.println(counts2[2]);
-    Serial.print("F4 515nm : ");
-    Serial.println(counts2[3]);
-    Serial.print("F5 555nm : ");
-    // again, we skip the duplicates  
-    Serial.println(counts2[6]);
-    Serial.print("F6 590nm : ");
-    Serial.println(counts2[7]);
-    Serial.print("F7 630nm : ");
-    Serial.println(counts2[8]);
-    Serial.print("F8 680nm : ");
-    Serial.println(counts2[9]);
-    Serial.print("Clear    : ");
-    Serial.println(counts2[10]);
-    Serial.print("NIR      : ");
-    Serial.println(counts2[11]);
-    MP.disableChannel(1);
-    Serial.println();
-
-    dataappend(sensorCount, counts1, counts2, ColorSensorTimer);
-    nophoto30K();
+    
+    delay(500);
+    Serial.println("turning LED off");
+    digitalWrite(IO2, LOW);
   }
 
   //end of TimeEvent1_time
