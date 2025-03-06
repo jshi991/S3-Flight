@@ -23,7 +23,7 @@ TCA9548A I2CMux;
 #define WriteToBuffer       ((one_min * 15) / SpeedFactor)
 #define NoPhoto             (one_hour / SpeedFactor)
 #define Pump                ((one_hour * 15) / SpeedFactor)
-
+#define PUMP_DURATION       (one_second * 60) //bogus value please test
 int sensor1count = 0;  
 int sensor2count = 0;  
 int State = 0;  
@@ -74,8 +74,11 @@ void Flying() {
     if ((millis() - Pump_Time) > Pump) {
       if (readbyteFromfram(PUMP_FLAG_ADDRESS) != ON_TRUE) {
         writebytefram(ON_TRUE, PUMP_FLAG_ADDRESS);
-        Serial.write(PUMP_PIN, HIGH);  
+        Serial.write(PUMP_PIN, HIGH);  //TODO PLEASE FIX
         Serial.write(PUMP_PIN_2, HIGH);
+        delay(PUMP_DURATION);
+        Serial.write(PUMP_PIN, LOW);  //TODO PLEASE FIX
+        Serial.write(PUMP_PIN_2, LOW);
       } else {
         Serial.println("Pumps have already been activated.");
       }
