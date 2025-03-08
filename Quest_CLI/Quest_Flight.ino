@@ -55,6 +55,10 @@ void Flying() {
   delay(200);
   I2CMux.closeAll();
 
+  as7341.setAtime(29);  // Integration time parameter
+  as7341.setAstep(599); // Another integration time parameter
+  as7341.setAGAIN(7);   // Gain setting (0~10 corresponds to X0.5, X1, X2, ... X512)
+  
   uint32_t WriteToBuffer_Time = millis();
   uint32_t NoPhoto_Time = millis();
   uint32_t Pump_Time = millis();
