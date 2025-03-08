@@ -78,11 +78,11 @@ void Flying() {
     if ((millis() - Pump_Time) > Pump) {
       if (readbyteFromfram(PUMP_FLAG_ADDRESS) != ON_TRUE) {
         writebytefram(ON_TRUE, PUMP_FLAG_ADDRESS);
-        Serial.write(PUMP_PIN, HIGH);  //TODO PLEASE FIX
-        Serial.write(PUMP_PIN_2, HIGH);
+        Serial.write(IO6, HIGH);  //TODO PLEASE FIX
+        Serial.write(IO5, HIGH);
         delay(PUMP_DURATION);
-        Serial.write(PUMP_PIN, LOW);  //TODO PLEASE FIX
-        Serial.write(PUMP_PIN_2, LOW);
+        Serial.write(IO6, LOW);  //TODO PLEASE FIX
+        Serial.write(IO5, LOW);
       } else {
         Serial.println("Pumps have already been activated.");
       }
@@ -97,7 +97,7 @@ void Flying() {
 
       Serial.println("Turning on LEDs");
       digitalWrite(IO2, HIGH);
-
+      delay(3000);
       uint16_t readingsChannel0[12] = {0};
       float countsChannel0[12] = {0};
 
@@ -132,6 +132,7 @@ void Flying() {
 
       delay(200);
       I2CMux.closeAll();
+      digitalWrite(IO2, LOW);
       dataappend(1, countsChannel0, countsChannel1, 1);
     }
   }
