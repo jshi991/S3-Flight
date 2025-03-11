@@ -139,15 +139,20 @@ void Flying() {
 }
 
 void dataappend(int counts, float vals1[], float vals2[], int Deadtime) {
-  const char colors[] = {'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '1', '2'};
+  const char colors[] = {'1', '2', '3', '4', '5', '6', '7', '8'};
   DateTime now = rtc.now();
-  String results = " - " + String(counts) + " " + String(Deadtime) + "\n";
+    char dateString[20]; 
+    sprintf(dateString, "%04d-%02d-%02d %02d:%02d:%02d", 
+            now.year(), now.month(), now.day(), 
+            now.hour(), now.minute(), now.second());
 
-  for (int i = 0; i < 12; i++) {
+  String results = " - new entry " + String(dateString) + String(counts) + " " + String(Deadtime) + "\n";
+
+  for (int i = 0; i < 8; i++) {
     results += String(colors[i]) + "[sensor1: " + String(vals1[i], 2) + 
                ", sensor2: " + String(vals2[i], 2) + "]\n";
   }
-  
+  Serial.println("results" + results);
   results += "\r\n";
   appendToBuffer(results.c_str());
 }
