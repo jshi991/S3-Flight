@@ -1964,7 +1964,7 @@ int cmd_takeSphoto() {        //19 - take a serial photo get a file name then pl
   for (int i = 0; ascii[i] != '\0'; i++) {
     z++;
   };  //find null char, z now points to pointer
-  uint16_t  y = 7 - z;                     //where to place lsd in mission buffer
+  uint16_t  y = 7 - z;//where to place lsd in mission buffer
   for (uint16_t x = 0 ; x < z; x++) {      //how many charators
     filenameS[y] = ascii[x];           //transfer from aacii array to proper location in text_mission
     y++;                               //pointer to text_mission array
@@ -3170,9 +3170,10 @@ int ReadSetup() {
 //
 //
 void nophoto30K(){
-  Serial.println("nophoto30K");
+  Serial.println("nophoto30K ");
 //----- get next PCD file count -----
   int x = (readintFromfram(PCDaddress));    //get next data photo number
+
   x++;                                      //inc the number
   if (x > 99999) {                          //check for over max reset
     x = 0;                                  //resset to O
@@ -3185,13 +3186,14 @@ void nophoto30K(){
     z++;                                    //not found inc Z for digits
   };                                        //end find null char, z now points to pointer
   //----- ascii photo number to file name -----
-  uint16_t  y = 7 - z;                     //where to place lsd in mission buffer
+  uint16_t  y = 7- z;                     //where to place lsd in mission buffer
   for (uint16_t x = 0 ; x < z; x++) {      //how many charators
     filenameD[y] = ascii[x];               //transfer from aacii array to proper location in text_mission
     y++;                                   //pointer to text_mission array
   }                                        //end text number
   //----- place team ID on file name -----
     filenameD[0] = readbyteFromfram(ID);    //Get team ID letter, place it as first letter of file name
+    Serial.println("ID tEAM CHECKING" + filenameD[0]);
   //
   //----- Serial.println(filenameS) is complete and ready to use as name on file
   //----- clear args[1] to 0 -----
@@ -3212,9 +3214,13 @@ void nophoto30K(){
 //  Serial.println(args[1]);                  //print full file name  for test
 //
 //----- write databuffer data to SD card with name -------
-//
-  File dataFile = SD.open(args[1], FILE_WRITE);       //open to save nophoto dara in file
-  if (dataFile) {                                     //check if file was created  
+// 
+  for(int i = 0; i < 64; i++){
+    Serial.print(args[1][i]);
+  }
+
+  File dataFile = SD.open("data.txt", FILE_WRITE);       //open to save nophoto dara in file
+   if (dataFile) {                                     //check if file was created  
      while (strlen(databuffer)<=1030){
         strcat(databuffer, "-");                    //fill with space 
      }
