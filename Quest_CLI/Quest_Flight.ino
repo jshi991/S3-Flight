@@ -22,7 +22,7 @@ TCA9548A I2CMux;
 
 #define WriteToBuffer       ((one_min * 15) / SpeedFactor)
 #define NoPhoto             (one_hour / SpeedFactor)
-#define Pump                ((one_hour * 15) / SpeedFactor)
+#define Pump                ((one_hour * 12) / SpeedFactor)
 #define PUMP_DURATION       (one_second * 60) //bogus value please test
 int sensor1count = 0;  
 int sensor2count = 0;  
